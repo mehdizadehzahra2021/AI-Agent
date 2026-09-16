@@ -1,5 +1,11 @@
 import ollama
+import requests
+import os
 from datetime import datetime
+from dotenv import load_dotenv
+from tavily import TavilyClient
+load_dotenv()
+tavily= TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
 def get_time():
     """Get the current local time.
     Returns:
@@ -9,7 +15,20 @@ def get_time():
 def calculator (a:float,b:float)->float:
     """Calculate the sum of tow numbers."""
     return a+b
-messages =[{"role":"user","content":"hello! introduce yourself in one sentence"}]
+def web_search(query:str) ->str:
+    """search the web by using Tavily"""
+    response = tavily.search(query=query)
+    results =response["results"][:5]
+    cleaned_results=[]
+    for result in results:
+        cleaned_results.append({
+            "title":result["title"],
+            "url":result["content"],
+            "content":result["content"]
+        })
+    return str(cleaned_results)
+
+messages =[{"role":"system","content":"Answer the user naturally and concisely. Do not expose raw tool output, internal feilds, notes, scores, or Json structure unlessthe user explicitly asks for them."},{"role":"user","content":"Hello! introduce yourself in one sentence.who you are?"}]
 messages.insert(0,{"role":"system","content":"you are a helpful assistant."
                    "Answer the user directly and conciesly."
                    "do not describe your reasoning or internal process."
@@ -17,7 +36,7 @@ messages.insert(0,{"role":"system","content":"you are a helpful assistant."
                    "Use the get_time tool only when the user ask for the current time."})
 response= ollama.chat(
     model="qwen3:4b", 
-    messages =messages, tools=[get_time,calculator],
+    messages =messages, tools=[get_time,calculator,web_search],
     think=False
 )
 print(response.message)
@@ -42,7 +61,7 @@ while True:
     response= ollama.chat(
                 model="qwen3:4b", 
                 messages =messages
-                ,tools=[get_time,calculator]
+                ,tools=[get_time,calculator,web_search]
                 ,think=False
                 )
     
@@ -54,9 +73,11 @@ while True:
                 result=get_time()
             elif call.function.name =="calculator":
                 result=calculator(**call.function.arguments)
-                print("TOOL:",call.function.name)
-                print("ARGS:",call.function.arguments)
-                print("result:",result)
+            elif call.function.name=="web_search":
+                result=web_search(**call.function.arguments)
+            print("TOOL:",call.function.name)
+            print("ARGS:",call.function.arguments)
+            #print("result:",result)
             messages.append({
                     "role":"tool",
                     "tool_name":call.function.name,
@@ -76,5 +97,4 @@ else:
     print(response.message.content)
     
     
-
 
